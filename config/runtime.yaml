@@ -3,7 +3,7 @@ scene: "scene_0"
 feature_flags:
   show_viz: true
   enable_ros_param_inflation_updates: true
-  nav_through_pose: true
+  nav_through_pose: false
 
 paths:
   data_root: "data"

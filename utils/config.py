@@ -131,6 +131,9 @@ _DEFAULT_CONFIG: dict[str, Any] = {
                 "v_min": 0.15,
                 "w_min": 0.15,
                 "p_stop": 0.10,
+                "exec_steps": 3,
+                "cmd_smooth_alpha": 0.4,
+                "warm_start_alpha": 0.3,
             },
             "dynamics": {
                 "a_v_max": 0.5,

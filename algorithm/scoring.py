@@ -435,6 +435,7 @@ def sample_and_select_action(
     v_min = float(sampling_cfg.get("v_min", 0.15))
     w_min = float(sampling_cfg.get("w_min", 0.15))
     p_stop = float(sampling_cfg.get("p_stop", 0.10))
+    warm_start_alpha = float(sampling_cfg.get("warm_start_alpha", 0.0))
 
     seqs, guide = trajectories_sampling_from_path(
         u0=u_prev,
@@ -452,6 +453,7 @@ def sample_and_select_action(
         p_stop=p_stop,
         a_v_max=params.a_v_max,
         a_w_max=params.a_w_max,
+        warm_start_alpha=warm_start_alpha,
     )
     sample_and_select_action._last_s0_index = guide.s0_index
 

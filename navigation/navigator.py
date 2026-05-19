@@ -266,6 +266,18 @@ def _run_single_task(
     active_goal_xy = object_location
     active_phi0 = params.phi0
 
+    # ---- smooth motion state (Options B / C) ----
+    _sampling_cfg = get_param(("control", "sampling"), {})
+    _exec_steps = int(_sampling_cfg.get("exec_steps", 3))
+    _cmd_smooth_alpha = float(_sampling_cfg.get("cmd_smooth_alpha", 0.4))
+    _traj_buffer: List[Tuple[float, float]] = []
+    _v_smooth, _w_smooth = 0.0, 0.0
+
+    # ---- visualisation state ----
+    _last_planner_result: Optional[Dict[str, Any]] = None  # cached for buffer-drain ticks
+    _viz_xlim: Optional[Tuple[float, float]] = None        # locked after first draw
+    _viz_ylim: Optional[Tuple[float, float]] = None
+
     # ---- telemetry collection ----
     _trajectory: List[Tuple[float, float]] = []
     _steps: List[Dict[str, Any]] = []
@@ -571,7 +583,12 @@ def _run_single_task(
 
         # ---- action selection ----
         if not all_ok and is_recovering:
+            _traj_buffer.clear()  # drop buffer so recovery is immediate
             v_cmd, w_cmd = 0.0, recovery_w
+            result = _idle_result(v_cmd, w_cmd)
+        elif not all_ok and _traj_buffer:
+            # Option C: drain buffered trajectory steps before replanning
+            v_cmd, w_cmd = _traj_buffer.pop(0)
             result = _idle_result(v_cmd, w_cmd)
         elif not all_ok:
             result = sample_and_select_action(
@@ -626,6 +643,10 @@ def _run_single_task(
                                           object_location[0] - x0[0])
                     active_phi0 = wrap_angle(_phi_ref - _phi_new)
                 v_cmd, w_cmd = result["best_action"]
+                # Fill buffer with the next exec_steps-1 steps so the robot
+                # keeps moving without replanning for the next few ticks.
+                best_traj = result.get("best_trajectory", [])
+                _traj_buffer = list(best_traj[1:_exec_steps])
 
         # ---- visualisation ----
         if show_viz and ax is not None:
@@ -721,13 +742,22 @@ def _run_single_task(
             f"pose_src={pose_source}"
         )
 
-        cmd_ok = send_cmd_vel_via_ipc(v_cmd, w_cmd)
+        # Option A: output low-pass filter — smooths jerk at the motor level.
+        # Bypass during recovery so spin commands are crisp.
+        if not is_recovering:
+            _v_smooth = (1.0 - _cmd_smooth_alpha) * _v_smooth + _cmd_smooth_alpha * v_cmd
+            _w_smooth = (1.0 - _cmd_smooth_alpha) * _w_smooth + _cmd_smooth_alpha * w_cmd
+        else:
+            _v_smooth, _w_smooth = v_cmd, w_cmd  # reset to avoid filter windup
+        v_send, w_send = _v_smooth, _w_smooth
+
+        cmd_ok = send_cmd_vel_via_ipc(v_send, w_send)
         if not cmd_ok and (step % 5 == 0):
             print(
                 "[WARN] cmd_vel IPC send did not receive OK; "
-                f"latest_cmd=(v={v_cmd:.3f}, w={w_cmd:.3f})"
+                f"latest_cmd=(v={v_send:.3f}, w={w_send:.3f})"
             )
-        u_prev = (v_cmd, w_cmd)
+        u_prev = (v_send, w_send)  # track what was actually sent
         step += 1
 
         if terminal_success_now:

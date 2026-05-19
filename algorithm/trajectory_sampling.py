@@ -144,6 +144,7 @@ def trajectories_sampling(
     yaw_rotate_threshold: float = math.radians(40),
     noise_v: float = 0.05,
     noise_w: float = 0.15,
+    warm_start_alpha: float = 0.0,
 ) -> List[List[Tuple[float, float]]]:
     """Velocity-sequence sampler around a path-lookahead heading."""
     x0, y0, th0 = x
@@ -162,6 +163,12 @@ def trajectories_sampling(
         v_target = 0.0
     else:
         v_target = v_max * max(0.2, 1.0 - abs(yaw_err) / yaw_rotate_threshold)
+
+    # Warm-start: blend the path-heading target toward the previous action so
+    # consecutive decisions stay close to each other, reducing jerk.
+    if warm_start_alpha > 0.0:
+        v_target = warm_start_alpha * v0 + (1.0 - warm_start_alpha) * v_target
+        w_target = warm_start_alpha * w0 + (1.0 - warm_start_alpha) * w_target
 
     dv_max = a_v_max * dt
     dw_max = a_w_max * dt
