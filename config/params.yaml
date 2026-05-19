@@ -1,0 +1,97 @@
+object_retrieval:
+  direction_min_distance_m: 0.30   # Compatibility knob for legacy directional references.
+  proximity_scale_m: 1.0           # Larger values make "near" relations decay more slowly.
+  reference_top_k: 8               # Number of reference candidates considered during disambiguation.
+  isolation_scale_m: 0.5           # Larger values make "alone" scores rise more gradually.
+  alone_clip_max_gap: 0.12         # Allowed CLIP score gap from the best "alone" candidate.
+  alone_max_candidates: 12         # Maximum candidates evaluated for "alone" references.
+  alone_clearance_gate_m: 0.20     # Minimum neighbour clearance required for "alone".
+  target_top_k_with_references: 8  # Number of target candidates kept when references exist.
+  clip_gate_start: 0.27            # Initial CLIP gate for adaptive retrieval.
+  clip_gate_min: 0.20              # Lowest CLIP gate before giving up.
+  clip_gate_step: 0.01             # CLIP gate decrement per retry.
+  reference_max_dist_m: 0.50       # Hard maximum target-reference distance for "near".
+  reference_score_gain: 1.50       # Multiplier applied to reference agreement before fusion.
+  clip_weight: 0.30                # Weight assigned to target CLIP similarity in final ranking.
+  top_k: 5                         # Top target candidates kept when no references are present.
+
+intent_costs:
+  constraint_radius_m: 1.0
+  preference_radius_m: 1.0
+  preference_min_dist_m: 0.3
+  w_constraint_path: 3.0
+  w_preference_near_repel_path: 1.0
+  w_preference_attract_path: 10.0
+
+planner:
+  max_goal_retries: 80
+  phase_relax_factor: 1.15
+  goal_w_phase: 0.70
+  goal_w_dist: 0.30
+  goal_w_cost_opt: 0.85
+  goal_w_dist_opt: 0.15
+  max_dist_relax_m: 0.30
+  hard_block_cost: 90
+
+control:
+  termination:
+    distance_band_m:
+      loose: [0.50, 1.00]
+      normal: [0.40, 0.80]
+      strict: [0.35, 0.60]
+    alpha_max_deg:
+      loose: 15.0
+      normal: 10.0
+      strict: 5.0
+    phi_tol_deg:
+      loose: 15.0
+      normal: 10.0
+      strict: 5.0
+    distance_band_half_width_m:
+      loose: 0.10
+      normal: 0.05
+      strict: 0.03
+  sampling:
+    h_r: 0.05
+    h_alpha_deg: 3.0
+    dwell_sec_default: 0.5
+    dwell_sec_no_stop: 0.0
+    horizon_steps: 30
+    dt_sec: 0.1
+    num_samples: 100
+    v_min: 0.15              # Minimum linear speed when robot is moving (hardware limit).
+    w_min: 0.15              # Minimum angular speed when robot is turning (hardware limit).
+    p_stop: 0.10             # Per-trajectory probability of sampling a full stop (v=0 or w=0).
+  dynamics:
+    a_v_max: 0.5
+    a_w_max: 0.5
+  weights:
+    w_du: 0.5
+    w_curv: 0.6
+    w_path: 2.0
+  behavior_mapping:
+    speed:
+      slow: {v_max: 0.2, w_max: 0.2}
+      normal: {v_max: 0.3, w_max: 0.3}
+      fast: {v_max: 0.4, w_max: 0.4}
+    caution:
+      low: {d_safe: 0.20, w_clear: 0.6, w_clear_v: 0.08, w_clear_w: 0.03}
+      normal: {d_safe: 0.30, w_clear: 4.0, w_clear_v: 0.3, w_clear_w: 0.2}
+      high: {d_safe: 0.40, w_clear: 12.0, w_clear_v: 0.8, w_clear_w: 0.35}
+    w_u_fast: 0.5
+    w_u_default: 1.0
+    r_entry_offset_m: 0.25
+    v_entry_max_slow_mps: 0.25
+    v_entry_max_default_mps: 0.35
+    w_face_far: 0.2
+    w_face_near: 1.0
+
+navigator:
+  timeout_sec: 180.0
+  collision_cost_thresh: 90.0
+  collision_duration_sec: 5.0
+  post_goal_max_retries: 3
+  pose_stale_timeout_sec: 1.0
+  pose_values_frozen_timeout_sec: 1.5
+  pose_missing_warn_sec: 1.0
+  pose_pipeline_warn_sec: 1.0

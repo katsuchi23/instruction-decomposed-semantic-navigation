@@ -1,0 +1,19 @@
+name: semnav
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy=1.26.4
+  - matplotlib=3.8.4
+  - pyzmq=26.0.3
+  - opencv
+  - pyyaml
+  - pip:
+      - openai>=1.50.0
+      - python-dotenv>=1.0.1
+      - pydantic>=2.7.0
+      - typing_extensions>=4.12.2
+      - torch>=2.2.0
+      - open-clip-torch>=2.20.0
+      - importlib_metadata>=4.0.0

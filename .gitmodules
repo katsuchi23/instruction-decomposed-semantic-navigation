@@ -1,0 +1,3 @@
+[submodule "submodules/DovSG"]
+	path = submodules/DovSG
+	url = https://github.com/BJHYZJ/DovSG.git

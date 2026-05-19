@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Environments
+.venv/
+venv/
+.env
+
+# Project outputs
+outputs/*
+!outputs/.gitkeep
+
+# Dataset contents
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/sample/*
+!data/sample/.gitkeep
+
+# Local model checkpoints
+models/clip/*
+!models/clip/.gitkeep
+!models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/
+models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/*
+!models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/.gitkeep
+
+# Semantic caches and debug artifacts
+outputs/intent_cache/
+outputs/semantic_debug/
+
+# Local config copies
+config/*.local.yaml
+config/scenes/*.local.yaml
+
+# Editors / OS
+.DS_Store
+.vscode/

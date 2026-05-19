@@ -1,0 +1,24 @@
+# IPC endpoints consumed by the runtime.
+# Change these values to match the endpoints exposed by your external bridge.
+
+endpoints:
+  pose_sub: "tcp://127.0.0.1:5557"          # TF / pose bundle subscriber
+  nav_status_sub: "tcp://127.0.0.1:5558"    # Nav status subscriber
+  cmd_vel_req: "tcp://127.0.0.1:5559"       # Velocity command request/reply
+  nav_goal_req: "tcp://127.0.0.1:5556"      # Optional nav-goal request/reply
+  trajectory_req: "tcp://127.0.0.1:5563"    # Optional trajectory publisher bridge
+  image_req: "tcp://127.0.0.1:5555"         # RGB image request/reply
+  depth_req: "tcp://127.0.0.1:5561"         # Depth image request/reply
+  scan_sub: "tcp://127.0.0.1:5562"          # Laser scan subscriber
+  local_costmap_req: "tcp://127.0.0.1:5564" # Local costmap request/reply
+  global_costmap_req: "tcp://127.0.0.1:5565" # Global costmap request/reply
+
+timeouts_ms:
+  pose_poll: 2000
+  cmd_vel_reply: 500
+  image_reply: 2000
+  depth_reply: 2000
+  scan_poll: 100
+  costmap_reply: 1000
+  nav_goal_reply: 2000
+  trajectory_reply: 500
