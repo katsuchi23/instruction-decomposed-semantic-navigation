@@ -12,6 +12,10 @@ endpoints:
   scan_sub: "tcp://127.0.0.1:5562"          # Laser scan subscriber
   local_costmap_req: "tcp://127.0.0.1:5564" # Local costmap request/reply
   global_costmap_req: "tcp://127.0.0.1:5565" # Global costmap request/reply
+  nav_through_poses_req: "tcp://127.0.0.1:5566" # NavigateThroughPoses goal request/reply
+  nav_cmd_vel_sub: "tcp://127.0.0.1:5567"    # /cmd_vel telemetry (nav_through_pose mode)
+  amcl_pose_sub: "tcp://127.0.0.1:5568"      # /amcl_pose (nav_through_pose mode)
+  nav_through_poses_status_sub: "tcp://127.0.0.1:5569" # NavigateThroughPoses status
 
 timeouts_ms:
   pose_poll: 2000
@@ -22,3 +26,4 @@ timeouts_ms:
   costmap_reply: 1000
   nav_goal_reply: 2000
   trajectory_reply: 500
+  nav_through_poses_reply: 5000

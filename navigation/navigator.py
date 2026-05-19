@@ -780,9 +780,14 @@ def _save_run(
             steps = t.get("steps") or []
             if steps:
                 last = steps[-1]
-                f.write(f"  Final dist: {last.get('distance_to_target', '?'):.3f}m\n")
-                f.write(f"  Final heading err: {last.get('heading_error_deg', '?'):.1f}°\n")
-                f.write(f"  Final phase err: {last.get('phase_error_deg', '?'):.1f}°\n")
+                def _fmt(val, spec):
+                    try:
+                        return format(float(val), spec)
+                    except (TypeError, ValueError):
+                        return "N/A"
+                f.write(f"  Final dist: {_fmt(last.get('distance_to_target'), '.3f')}m\n")
+                f.write(f"  Final heading err: {_fmt(last.get('heading_error_deg'), '.1f')}°\n")
+                f.write(f"  Final phase err: {_fmt(last.get('phase_error_deg'), '.1f')}°\n")
 
     map_pgm_str = get_runtime_value(("paths", "viz_map_pgm"), "")
     map_pgm = Path(map_pgm_str) if map_pgm_str else None
@@ -887,6 +892,13 @@ def run_navigation(
     output_dir = get_outputs_root() / "runs" / run_ts
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    nav_through_pose_mode = bool(get_runtime_value(("feature_flags", "nav_through_pose"), False))
+    if nav_through_pose_mode:
+        from navigation.nav_through_pose import run_nav_through_pose_task
+        print("[INFO] Navigation mode: nav_through_pose (trajectory sampling → Nav2 endpoint)")
+    else:
+        print("[INFO] Navigation mode: direct cmd_vel (trajectory sampling)")
+
     # ---- execute tasks sequentially ----
     collected_task_results: List[Dict[str, Any]] = []
     for idx, task in enumerate(parsed.tasks):
@@ -920,20 +932,33 @@ def run_navigation(
             print(f"  Preference (stay close): {p.target.name} at ({loc[0]:.2f}, {loc[1]:.2f})")
 
         _reset_action_selector_state()
-        success, task_data = _run_single_task(
-            task=task,
-            task_idx=idx,
-            total_tasks=len(parsed.tasks),
-            attempt_idx=1,
-            object_location=tuple(object_location),
-            show_viz=show_viz,
-            ax=ax,
-            constraint_xys=tuple(constraint_xys),
-            preference_xys=tuple(preference_xys),
-            timeout_sec=timeout_sec,
-            collision_cost_thresh=collision_cost_thresh,
-            collision_duration_sec=collision_duration_sec,
-        )
+        if nav_through_pose_mode:
+            success, task_data = run_nav_through_pose_task(
+                task=task,
+                task_idx=idx,
+                total_tasks=len(parsed.tasks),
+                object_location=tuple(object_location),
+                constraint_xys=tuple(constraint_xys),
+                preference_xys=tuple(preference_xys),
+                timeout_sec=timeout_sec,
+                collision_cost_thresh=collision_cost_thresh,
+                collision_duration_sec=collision_duration_sec,
+            )
+        else:
+            success, task_data = _run_single_task(
+                task=task,
+                task_idx=idx,
+                total_tasks=len(parsed.tasks),
+                attempt_idx=1,
+                object_location=tuple(object_location),
+                show_viz=show_viz,
+                ax=ax,
+                constraint_xys=tuple(constraint_xys),
+                preference_xys=tuple(preference_xys),
+                timeout_sec=timeout_sec,
+                collision_cost_thresh=collision_cost_thresh,
+                collision_duration_sec=collision_duration_sec,
+            )
         task_data["task_idx"] = idx
         task_data["target_name"] = desc
         task_data["target_location"] = list(object_location)

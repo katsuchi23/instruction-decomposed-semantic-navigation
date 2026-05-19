@@ -95,3 +95,7 @@ navigator:
   pose_values_frozen_timeout_sec: 1.5
   pose_missing_warn_sec: 1.0
   pose_pipeline_warn_sec: 1.0
+
+
+nav_through_pose:
+  approach_threshold_m: 0.4    # Replan when robot is within this distance of the current waypoint.

@@ -3,14 +3,15 @@ scene: "scene_0"
 feature_flags:
   show_viz: true
   enable_ros_param_inflation_updates: true
+  nav_through_pose: true
 
 paths:
   data_root: "data"
   processed_data_root: "data/processed"
   outputs_root: "outputs"
   intent_cache_dir: "outputs/intent_cache"
-  docs_path: ""
-  viz_map_pgm: ""
+  docs_path: "/home/rey/semantic_navigation/data/testing_ground/memory/30_0.1_0.02_True_0.2_0.5/step_0/data_json/docs_merged.jsonl"
+  viz_map_pgm: "/home/rey/semantic_navigation/ros2_ws/src/my_nav2_bringup/maps/testing_ground.pgm"
 
 assets:
   dovsg_root: "submodules/DovSG"

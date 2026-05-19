@@ -28,6 +28,10 @@ _DEFAULT_CONFIG: dict[str, Any] = {
             "scan_sub": "tcp://127.0.0.1:5562",
             "local_costmap_req": "tcp://127.0.0.1:5564",
             "global_costmap_req": "tcp://127.0.0.1:5565",
+            "nav_through_poses_req": "tcp://127.0.0.1:5566",
+            "nav_cmd_vel_sub": "tcp://127.0.0.1:5567",
+            "amcl_pose_sub": "tcp://127.0.0.1:5568",
+            "nav_through_poses_status_sub": "tcp://127.0.0.1:5569",
         },
         "timeouts_ms": {
             "pose_poll": 2000,
@@ -38,6 +42,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
             "costmap_reply": 1000,
             "nav_goal_reply": 2000,
             "trajectory_reply": 500,
+            "nav_through_poses_reply": 5000,
         },
     },
     "runtime": {
@@ -45,6 +50,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
         "feature_flags": {
             "show_viz": True,
             "enable_ros_param_inflation_updates": False,
+            "nav_through_pose": False,
         },
         "paths": {
             "data_root": "data",
@@ -154,6 +160,9 @@ _DEFAULT_CONFIG: dict[str, Any] = {
                 "w_face_far": 0.2,
                 "w_face_near": 1.0,
             },
+        },
+        "nav_through_pose": {
+            "approach_threshold_m": 0.4,
         },
         "navigator": {
             "timeout_sec": 180.0,
