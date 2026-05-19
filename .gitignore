@@ -24,9 +24,6 @@ data/sample/*
 # Local model checkpoints
 models/clip/*
 !models/clip/.gitkeep
-!models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/
-models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/*
-!models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/.gitkeep
 
 # Semantic caches and debug artifacts
 outputs/intent_cache/
