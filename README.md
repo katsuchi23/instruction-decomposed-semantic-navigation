@@ -334,10 +334,6 @@ See [docs/reproducibility.md](docs/reproducibility.md) for the full protocol.
 
 ## References
 
-If you use this repository in academic work, cite the project report or resulting paper associated with:
-
-- **Language-Conditioned Autonomous Navigation through Instruction Decomposition**
-
 Related upstream dependencies:
 
 - DovSG: `https://github.com/BJHYZJ/DovSG`
