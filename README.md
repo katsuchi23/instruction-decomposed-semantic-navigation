@@ -12,6 +12,12 @@ Natural-language navigation instructions often contain more than a single destin
 
 The central idea of this repository is to treat language as a modular control interface rather than a monolithic command. Instead of relying on a fully end-to-end policy, the system separates instruction parsing, semantic grounding, global planning, and local trajectory scoring. That design makes it easier to inspect how each language component affects robot behavior and makes the system easier to tune, debug, and evaluate in a research setting.
 
+## Demo
+
+> *"go to the red cube near the blue sphere while avoiding the red cube"*
+
+![Navigation demo](assets/demo.gif)
+
 ---
 
 ## What This Repository Contains

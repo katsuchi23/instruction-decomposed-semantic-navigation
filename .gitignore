@@ -37,6 +37,11 @@ config/scenes/*.local.yaml
 .DS_Store
 .vscode/
 
+# Raw video recordings
+*.mp4
+*.mkv
+*.avi
+
 # AI assistant metadata
 .claude/
 .codex/
