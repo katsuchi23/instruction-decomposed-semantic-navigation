@@ -8,7 +8,6 @@ import argparse
 from utils.config import (
     get_docs_path_from_config,
     get_param,
-    get_runtime_value,
     load_repo_config,
 )
 
@@ -39,7 +38,6 @@ def main() -> None:
     configure_object_retrieval_params()
 
     docs_path = str(get_docs_path_from_config() or "")
-    show_viz = bool(get_runtime_value(("feature_flags", "show_viz"), True))
 
     timeout_sec = float(get_param(("navigator", "timeout_sec"), 180.0))
     collision_cost_thresh = float(get_param(("navigator", "collision_cost_thresh"), 90.0))
@@ -48,7 +46,6 @@ def main() -> None:
     run_navigation(
         instruction=args.instruction,
         docs_path=docs_path or None,
-        show_viz=show_viz,
         timeout_sec=timeout_sec,
         collision_cost_thresh=collision_cost_thresh,
         collision_duration_sec=collision_duration_sec,

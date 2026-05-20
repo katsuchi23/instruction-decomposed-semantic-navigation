@@ -22,7 +22,6 @@ from algorithm.scoring import (
     sample_and_select_action,
     satisfaction_violation,
 )
-from algorithm.trajectory_sampling import visualize_trajectory_samples
 from ipc.costmap_client import GlobalCostmapIPCClient, LocalCostmapIPCClient
 from ipc.occupancy_grid import get_cost_at_pose
 from ipc.robot_client import get_latest_robot_pose, reconnect_pose_socket, reset_pose_selection_state, select_map_base_pose, send_cmd_vel_via_ipc
@@ -36,11 +35,6 @@ from utils.config import get_outputs_root, get_param, get_runtime_value, validat
 from ipc.viz_client import send_viz_data
 from utils.path_visualization import plot_task_path
 from utils.intent_cache import load_or_parse_instruction
-from utils.matplotlib_setup import (
-    collect_backend_diagnostics,
-    safe_pause,
-    show_live_figure,
-)
 from utils.math_helpers import wrap_angle
 
 _LAST_INFLATION_CFG: Optional[Tuple[float, float]] = None
@@ -194,8 +188,6 @@ def _run_single_task(
     total_tasks: int,
     attempt_idx: int,
     object_location: Tuple[float, float],
-    show_viz: bool,
-    ax=None,
     constraint_xys: Tuple[Tuple[float, float], ...] = (),
     preference_xys: Tuple[Tuple[float, float], ...] = (),
     timeout_sec: float = 180.0,
@@ -274,10 +266,7 @@ def _run_single_task(
     _traj_buffer: List[Tuple[float, float]] = []
     _v_smooth, _w_smooth = 0.0, 0.0
 
-    # ---- visualisation state ----
     _last_planner_result: Optional[Dict[str, Any]] = None  # cached for buffer-drain ticks
-    _viz_xlim: Optional[Tuple[float, float]] = None        # locked after first draw
-    _viz_ylim: Optional[Tuple[float, float]] = None
 
     # ---- telemetry collection ----
     _trajectory: List[Tuple[float, float]] = []
@@ -649,88 +638,10 @@ def _run_single_task(
                 best_traj = result.get("best_trajectory", [])
                 _traj_buffer = list(best_traj[1:_exec_steps])
 
-        # ---- visualisation ----
-        # Cache the last result that has a real planner so buffer-drain ticks
-        # (which use _idle_result) keep showing the last meaningful scene
-        # instead of switching to a bare dot-plot and back every exec_steps.
+        # ---- RViz visualization (IPC → ROS node → /semnav/* topics) ----
         if result.get("planner") is not None:
             _last_planner_result = result
         viz_result = _last_planner_result if _last_planner_result is not None else result
-
-        if show_viz and ax is not None:
-            import matplotlib.pyplot as plt
-
-            ax.clear()
-            planner = viz_result.get("planner")
-            if planner is not None:
-                planner.visualize(
-                    viz_result.get("path", []),
-                    x0,
-                    robot_pose,
-                    object_location,
-                    params.r_min,
-                    params.r_max,
-                    params.phi0,
-                    params.phi_tol,
-                    ax=ax,
-                    show_goal_zone=False,
-                    show_legend=False,
-                )
-
-                viz_seqs = viz_result.get("all_seqs", [])
-                if len(viz_seqs) > 30:
-                    viz_seqs = random.sample(viz_seqs, 30)
-                if viz_seqs:
-                    visualize_trajectory_samples(robot_pose, viz_seqs, dt=params.dt, ax=ax)
-
-                guide = viz_result.get("guide")
-                if guide is not None:
-                    lx, ly = guide.lookahead_xy
-                    ax.plot(lx, ly, marker="x", markersize=8, markeredgewidth=2, label="Lookahead")
-            else:
-                ax.plot(x0[0], x0[1], "ko", markersize=6, label="Start")
-                ax.plot(robot_pose[0], robot_pose[1], "go", markersize=7, label="Robot")
-                ax.plot(object_location[0], object_location[1], "rx", markersize=8, label="Target")
-                ax.plot(active_goal_xy[0], active_goal_xy[1], "b*", markersize=10, label="Active Goal")
-
-            # Draw initial heading arrow so start orientation is explicit.
-            start_arrow_len = 0.20
-            ax.arrow(
-                x0[0],
-                x0[1],
-                math.cos(x0[2]) * start_arrow_len,
-                math.sin(x0[2]) * start_arrow_len,
-                width=0.01,
-                head_width=0.06,
-                head_length=0.08,
-                fc="#2E7D32",
-                ec="white",
-                linewidth=1.0,
-                alpha=0.95,
-                length_includes_head=True,
-                zorder=20,
-            )
-            ax.plot([], [], color="#2E7D32", linewidth=2.0, label="Start heading")
-
-            mode = "RECOV" if is_recovering else ("IDLE" if all_ok else "NAV")
-            ax.set_title(
-                f"Task {task_idx+1}/{total_tasks} Attempt {attempt_idx}: "
-                f"{task.main.target.name} [{mode}]"
-            )
-            ax.legend(loc="upper right")
-
-            # Lock axis limits after first real draw so the view doesn't
-            # rescale every tick as trajectory samples change.
-            if _viz_xlim is None and ax.get_xlim() != (0.0, 1.0):
-                _viz_xlim = ax.get_xlim()
-                _viz_ylim = ax.get_ylim()
-            if _viz_xlim is not None:
-                ax.set_xlim(_viz_xlim)
-                ax.set_ylim(_viz_ylim)
-
-            safe_pause(0.001)
-
-        # ---- RViz visualization (IPC → ROS node → /semnav/* topics) ----
         _guide = viz_result.get("guide")
         send_viz_data(
             robot_pose=robot_pose,
@@ -891,7 +802,6 @@ def _save_run(
 def run_navigation(
     instruction: str,
     docs_path: Optional[str],
-    show_viz: bool,
     timeout_sec: float = 180.0,
     collision_cost_thresh: float = 90.0,
     collision_duration_sec: float = 5.0,
@@ -921,35 +831,6 @@ def run_navigation(
         print("[WARN] No tasks parsed from instruction. Nothing to do.")
         return
 
-    # ---- set up visualisation ----
-    ax = None
-    if show_viz:
-        diag = collect_backend_diagnostics(try_enable_gui=True)
-        print(
-            "[INFO] Matplotlib backend diagnostics: "
-            f"backend={diag.get('backend')} "
-            f"display={diag.get('display')} "
-            f"pyplot_preimported={diag.get('pyplot_preimported')} "
-            f"supports_windows={diag.get('supports_windows')} "
-            f"can_create_figure={diag.get('can_create_figure')}"
-        )
-        backend_attempt_errors = diag.get("backend_attempt_errors")
-        if backend_attempt_errors:
-            print(f"[INFO] Backend attempt details: {backend_attempt_errors}")
-        gui_ok = bool(diag.get("can_create_figure"))
-        if gui_ok:
-            import matplotlib.pyplot as plt
-            plt.ion()
-            fig, ax = plt.subplots()
-            if not show_live_figure(fig):
-                ax = None
-                show_viz = False
-        else:
-            print(
-                "[WARN] Matplotlib GUI backend unavailable; live visualization disabled. "
-                f"details={backend_attempt_errors}"
-            )
-            show_viz = False
 
     # ---- set up output directory ----
     run_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1015,8 +896,6 @@ def run_navigation(
                 total_tasks=len(parsed.tasks),
                 attempt_idx=1,
                 object_location=tuple(object_location),
-                show_viz=show_viz,
-                ax=ax,
                 constraint_xys=tuple(constraint_xys),
                 preference_xys=tuple(preference_xys),
                 timeout_sec=timeout_sec,
