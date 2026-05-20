@@ -33,6 +33,7 @@ from navigation.object_retrieval import (
 )
 from parsing.intent_parser import TaskIntent, ObjectRef
 from utils.config import get_outputs_root, get_param, get_runtime_value, validate_runtime_prereqs
+from ipc.viz_client import send_viz_data
 from utils.path_visualization import plot_task_path
 from utils.intent_cache import load_or_parse_instruction
 from utils.matplotlib_setup import (
@@ -728,6 +729,23 @@ def _run_single_task(
                 ax.set_ylim(_viz_ylim)
 
             safe_pause(0.001)
+
+        # ---- RViz visualization (IPC → ROS node → /semnav/* topics) ----
+        _guide = viz_result.get("guide")
+        send_viz_data(
+            robot_pose=robot_pose,
+            start_pose=x0,
+            target_xy=object_location,
+            active_goal_xy=active_goal_xy,
+            path=viz_result.get("path") or [],
+            all_seqs=viz_result.get("all_seqs") or [],
+            dt=params.dt,
+            r_min=params.r_min,
+            r_max=params.r_max,
+            lookahead_xy=_guide.lookahead_xy if _guide is not None else None,
+            mode="RECOV" if is_recovering else ("IDLE" if all_ok else "NAV"),
+            task_name=task.main.target.name,
+        )
 
         # ---- telemetry collection ----
         _trajectory.append((robot_pose[0], robot_pose[1]))

@@ -16,6 +16,7 @@ endpoints:
   nav_cmd_vel_sub: "tcp://127.0.0.1:5567"    # /cmd_vel telemetry (nav_through_pose mode)
   amcl_pose_sub: "tcp://127.0.0.1:5568"      # /amcl_pose (nav_through_pose mode)
   nav_through_poses_status_sub: "tcp://127.0.0.1:5569" # NavigateThroughPoses status
+  viz_pub: "tcp://127.0.0.1:5570"            # Navigation visualization publisher (PUB/SUB)
 
 timeouts_ms:
   pose_poll: 2000

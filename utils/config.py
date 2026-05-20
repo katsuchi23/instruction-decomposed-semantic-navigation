@@ -32,6 +32,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
             "nav_cmd_vel_sub": "tcp://127.0.0.1:5567",
             "amcl_pose_sub": "tcp://127.0.0.1:5568",
             "nav_through_poses_status_sub": "tcp://127.0.0.1:5569",
+            "viz_pub": "tcp://127.0.0.1:5570",
         },
         "timeouts_ms": {
             "pose_poll": 2000,
