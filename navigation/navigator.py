@@ -649,14 +649,21 @@ def _run_single_task(
                 _traj_buffer = list(best_traj[1:_exec_steps])
 
         # ---- visualisation ----
+        # Cache the last result that has a real planner so buffer-drain ticks
+        # (which use _idle_result) keep showing the last meaningful scene
+        # instead of switching to a bare dot-plot and back every exec_steps.
+        if result.get("planner") is not None:
+            _last_planner_result = result
+        viz_result = _last_planner_result if _last_planner_result is not None else result
+
         if show_viz and ax is not None:
             import matplotlib.pyplot as plt
 
             ax.clear()
-            planner = result.get("planner")
+            planner = viz_result.get("planner")
             if planner is not None:
                 planner.visualize(
-                    result.get("path", []),
+                    viz_result.get("path", []),
                     x0,
                     robot_pose,
                     object_location,
@@ -669,18 +676,17 @@ def _run_single_task(
                     show_legend=False,
                 )
 
-                viz_seqs = result.get("all_seqs", [])
+                viz_seqs = viz_result.get("all_seqs", [])
                 if len(viz_seqs) > 30:
                     viz_seqs = random.sample(viz_seqs, 30)
                 if viz_seqs:
                     visualize_trajectory_samples(robot_pose, viz_seqs, dt=params.dt, ax=ax)
 
-                guide = result.get("guide")
+                guide = viz_result.get("guide")
                 if guide is not None:
                     lx, ly = guide.lookahead_xy
                     ax.plot(lx, ly, marker="x", markersize=8, markeredgewidth=2, label="Lookahead")
             else:
-                # Fallback view so UI still updates during recovery/idle/no-planner steps.
                 ax.plot(x0[0], x0[1], "ko", markersize=6, label="Start")
                 ax.plot(robot_pose[0], robot_pose[1], "go", markersize=7, label="Robot")
                 ax.plot(object_location[0], object_location[1], "rx", markersize=8, label="Target")
@@ -711,6 +717,16 @@ def _run_single_task(
                 f"{task.main.target.name} [{mode}]"
             )
             ax.legend(loc="upper right")
+
+            # Lock axis limits after first real draw so the view doesn't
+            # rescale every tick as trajectory samples change.
+            if _viz_xlim is None and ax.get_xlim() != (0.0, 1.0):
+                _viz_xlim = ax.get_xlim()
+                _viz_ylim = ax.get_ylim()
+            if _viz_xlim is not None:
+                ax.set_xlim(_viz_xlim)
+                ax.set_ylim(_viz_ylim)
+
             safe_pause(0.001)
 
         # ---- telemetry collection ----

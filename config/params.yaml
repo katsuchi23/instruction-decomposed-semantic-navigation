@@ -62,7 +62,7 @@ control:
     v_min: 0.15              # Minimum linear speed when robot is moving (hardware limit).
     w_min: 0.15              # Minimum angular speed when robot is turning (hardware limit).
     p_stop: 0.10             # Per-trajectory probability of sampling a full stop (v=0 or w=0).
-    exec_steps: 1            # Execute this many trajectory steps before replanning.
+    exec_steps: 3            # Execute this many trajectory steps before replanning.
     cmd_smooth_alpha: 0.4    # Output velocity low-pass filter (0=frozen, 1=no filter).
     warm_start_alpha: 0.3    # Blend previous action into sampling target to reduce heading jumps. (v_target = 0.3 × v_prev + 0.7 × v_path)
   dynamics:
