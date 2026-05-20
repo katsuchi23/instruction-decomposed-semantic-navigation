@@ -36,3 +36,7 @@ config/scenes/*.local.yaml
 # Editors / OS
 .DS_Store
 .vscode/
+
+# AI assistant metadata
+.claude/
+.codex/

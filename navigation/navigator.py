@@ -247,9 +247,9 @@ def _run_single_task(
     is_recovering = False
     recovery_w = 0.0
     last_recovery_time = 0.0
-    RECOV_DWELL_SEC = 2.0
-    DONE_DWELL_SEC = 0.0
-    SPIN_W = 0.2
+    RECOV_DWELL_SEC = float(get_param(("navigator", "recovery_dwell_sec"), 2.0))
+    DONE_DWELL_SEC  = float(get_param(("navigator", "done_dwell_sec"), 0.0))
+    SPIN_W          = float(get_param(("navigator", "recovery_spin_w"), 0.2))
 
     near_goal_since: Optional[float] = None
     done_stable_since: Optional[float] = None
@@ -509,7 +509,7 @@ def _run_single_task(
             last_recovery_time = time.time()
 
         if is_recovering:
-            if abs(alpha_error) <= math.radians(3.0):
+            if abs(alpha_error) <= math.radians(float(get_param(("navigator", "recovery_facing_tol_deg"), 3.0))):
                 print("[RECOVERY] Facing aligned. Exiting recovery.")
                 is_recovering = False
                 done_stable_since = None
@@ -656,6 +656,8 @@ def _run_single_task(
             lookahead_xy=_guide.lookahead_xy if _guide is not None else None,
             mode="RECOV" if is_recovering else ("IDLE" if all_ok else "NAV"),
             task_name=task.main.target.name,
+            constraint_xys=constraint_xys,
+            preference_xys=preference_xys,
         )
 
         # ---- telemetry collection ----

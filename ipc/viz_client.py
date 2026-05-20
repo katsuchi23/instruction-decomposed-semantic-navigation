@@ -61,9 +61,18 @@ def send_viz_data(
     lookahead_xy: Optional[Tuple[float, float]],
     mode: str,
     task_name: str,
+    constraint_xys: tuple = (),
+    preference_xys: tuple = (),
     max_traj_samples: int = 30,
 ) -> None:
     """Publish navigation viz data non-blocking — drop if no subscriber."""
+    try:
+        from planning.intent_costs import get_constraint_radius_m, get_preference_radius_m
+        constraint_r = get_constraint_radius_m()
+        preference_r = get_preference_radius_m()
+    except Exception:
+        constraint_r, preference_r = 1.0, 1.0
+
     try:
         pub = _ensure_viz_pub()
 
@@ -83,6 +92,10 @@ def send_viz_data(
             "r_max":   r_max,
             "mode":    mode,
             "task_name": task_name,
+            "constraint_xys": [list(xy) for xy in constraint_xys],
+            "preference_xys": [list(xy) for xy in preference_xys],
+            "constraint_radius": constraint_r,
+            "preference_radius": preference_r,
         })
         pub.send_string(f"VIZ {payload}", flags=zmq.NOBLOCK)
     except Exception:

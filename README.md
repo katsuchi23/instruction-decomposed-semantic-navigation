@@ -2,7 +2,9 @@
 
 Research code release for **Language-Conditioned Autonomous Navigation through Instruction Decomposition**.
 
-This repository exposes the semantic-navigation pipeline as a **single-device**, **single-entrypoint** runtime. The navigation stack reads all robot state through IPC endpoints, grounds language against DovSG semantic memory (`docs.jsonl`), and outputs commands back through IPC. The external ROS/simulator/real-robot environment is expected to already provide the IPC bridge.
+This repository exposes the semantic-navigation pipeline as a **single-device**, **single-entrypoint** runtime. The navigation stack reads all robot state through IPC endpoints, grounds language against DovSG semantic memory (`docs.jsonl`), and outputs commands back through IPC. The external ROS/simulator/real-robot environment is expected to provide the IPC bridge nodes documented in `ros_nodes/`.
+
+---
 
 ## Introduction
 
@@ -10,28 +12,38 @@ Natural-language navigation instructions often contain more than a single destin
 
 The central idea of this repository is to treat language as a modular control interface rather than a monolithic command. Instead of relying on a fully end-to-end policy, the system separates instruction parsing, semantic grounding, global planning, and local trajectory scoring. That design makes it easier to inspect how each language component affects robot behavior and makes the system easier to tune, debug, and evaluate in a research setting.
 
+---
+
 ## What This Repository Contains
 
-- Core language parsing, semantic grounding, planning, and control logic.
-- A single public runtime entrypoint: `main.py`.
-- Config-driven IPC endpoints and algorithm parameters.
-- DovSG as a git submodule under `submodules/DovSG`.
-- Dataset placeholders and preparation scripts.
-- Docs for dataset layout, IPC payloads, and reproducibility.
+- **Core pipeline** — language parsing, semantic grounding (CLIP + DovSG), A\* global planning, and local trajectory scoring with a cost function that handles goal satisfaction, obstacle clearance, path following, constraints, and preferences.
+- **Two navigation modes** — direct `cmd_vel` trajectory-sampling mode and a Nav2-delegated `nav_through_pose` mode.
+- **Single public entrypoint** — `main.py`.
+- **Config-driven everything** — all algorithm parameters are in `config/params.yaml`; IPC addresses in `config/ipc.yaml`; runtime flags in `config/runtime.yaml`. No tuning values are hardcoded.
+- **ROS bridge nodes** — ready-to-use ROS2 Python scripts in `ros_nodes/` that implement the IPC bridge between this stack and any ROS2 environment.
+- **RViz visualization** — the navigation state (path, trajectory samples, goal ring, constraint/preference radii) is published as standard RViz topics via `ros_nodes/semnav_rviz_node.py`.
+- **Automatic result saving** — every run saves `result.json`, `summary.txt`, per-task telemetry CSVs, trajectory CSVs, and a path-map PNG to `outputs/runs/<timestamp>/`.
+- **DovSG submodule** — `submodules/DovSG`.
+- **Dataset placeholders and preparation scripts**.
+- **Docs** — dataset layout, IPC payloads, reproducibility guide.
+
+---
 
 ## Tested Environment
 
 - Ubuntu 22.04
 - Python 3.10
-- ROS 2 Humble on the external robotics side
+- ROS 2 Humble (external robotics side)
 - DovSG checked out as a submodule at the commit recorded in this repository
 
-The core runtime is intentionally IPC-driven rather than ROS-topic-driven. If your robotics stack can provide the documented IPC endpoints, the navigation code can stay unchanged.
+The core runtime is IPC-driven rather than ROS-topic-driven. If your robotics stack can provide the documented IPC endpoints, the navigation code can stay unchanged.
+
+---
 
 ## Clone With Submodules
 
 ```bash
-git clone --recurse-submodules https://github.com/katsuchi23/instruction-decomposed-semantic-navigation 
+git clone --recurse-submodules https://github.com/katsuchi23/instruction-decomposed-semantic-navigation
 cd instruction-decomposed-semantic-navigation
 ```
 
@@ -40,6 +52,8 @@ If you already cloned without submodules:
 ```bash
 git submodule update --init --recursive
 ```
+
+---
 
 ## Installation
 
@@ -50,43 +64,50 @@ conda env create -f environment.yml
 conda activate semnav
 ```
 
-If you prefer `pip`, install the repository dependencies first and then follow the DovSG setup instructions from its upstream project:
+If you prefer `pip`:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+---
+
 ## Required Model Checkpoints
 
-For the full DovSG model setup, including any additional checkpoints required by DovSG itself, please refer to the upstream repository:
+### CLIP checkpoint (required by this repository)
 
-- DovSG repository: `https://github.com/BJHYZJ/DovSG`
+The semantic-grounding runtime requires an OpenCLIP `ViT-H-14` checkpoint. The model directory is configured in `config/runtime.yaml` under `assets.clip_checkpoint_dir`.
 
-For this repository specifically, the CLIP checkpoint must still be present because the semantic-grounding runtime uses it directly.
+Download via `git lfs` (recommended — preserves large-file pointers):
 
-Required CLIP checkpoint directory (you can change it in `config/runtime.yaml`):
+```bash
+# 1. Install git-lfs if not already installed
+git lfs install
 
-```text
-instruction-decomposed-semantic-navigation/models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/
+# 2. Clone the model repository from HuggingFace
+git clone https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K \
+    models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K
 ```
 
-Create that directory locally if it does not exist yet, then place the downloaded CLIP checkpoint contents there.
-
-The runtime expects this file inside that directory:
+After cloning, the runtime expects this file to exist:
 
 ```text
-instruction-decomposed-semantic-navigation/models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/open_clip_pytorch_model.bin
+models/clip/CLIP-ViT-H-14-laion2B-s32B-b79K/open_clip_pytorch_model.bin
 ```
 
-CLIP download link:
+If `git lfs` is not available you can also download individual files directly from:
 
-- OpenCLIP `ViT-H-14` LAION2B weights: `https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K`
+```
+https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K
+```
 
-Usage summary:
+### DovSG checkpoints
 
-- `main.py`: requires the CLIP checkpoint above
-- `scripts/prepare_docs_from_dovsg.py`: does not require CLIP if `instance_objects.pkl` already exists
-- DovSG memory generation: follow the DovSG repository instructions for all required models inside the DovSG submodule environment
+For the full DovSG model setup, follow the upstream repository instructions:
+
+- `https://github.com/BJHYZJ/DovSG`
+
+---
 
 ## Dataset Layout
 
@@ -110,15 +131,13 @@ data/
 └── sample/
 ```
 
-If you distribute prepared scenes separately, for example via Google Drive, the extracted directories should land under `data/processed/<scene_name>/...` without renaming.
+See [docs/dataset_format.md](docs/dataset_format.md) for the exact expected layout.
 
-See [docs/dataset_format.md](docs/dataset_format.md) and [data/README.md](data/README.md) for the exact expected layout.
+---
 
 ## Preparing `docs.jsonl` From DovSG Outputs
 
-This release assumes the reader already has DovSG-generated scene outputs. At minimum, the supported public workflow assumes you already have `instance_objects.pkl`.
-
-Convert it into `docs.jsonl` with:
+Convert `instance_objects.pkl` into `docs.jsonl` with:
 
 ```bash
 python scripts/prepare_docs_from_dovsg.py \
@@ -134,55 +153,146 @@ python scripts/prepare_dataset_from_bag.py \
   --out_dir data/processed/<scene_name>
 ```
 
-## IPC Configuration
+---
 
-The runtime reads IPC endpoint addresses from `config/ipc.yaml`. The IPC contract is documented in [docs/ipc_interface.md](docs/ipc_interface.md).
+## Configuration
 
-This repository does **not** require ROS topic names in `main.py`. Topic names are part of the external bridge, not the core runtime.
+All tuning knobs live in the config files. **Do not hardcode values in scripts.**
+
+| File | Controls |
+|------|----------|
+| `config/ipc.yaml` | ZMQ endpoint addresses and timeouts |
+| `config/params.yaml` | All algorithm parameters (retrieval, planner, control, scoring, navigator) |
+| `config/runtime.yaml` | Runtime flags (navigation mode, visualization, file paths) |
+| `config/scenes/<scene>.yaml` | Per-scene overrides |
+
+### Key `config/params.yaml` sections
+
+- **`object_retrieval`** — CLIP gate, reference scoring, top-K candidates
+- **`intent_costs`** — constraint/preference radii and cost weights
+- **`planner`** — A\* goal candidate search and relaxation
+- **`control.sampling`** — trajectory horizon, noise, lookahead distance, hardware velocity limits (`v_min`, `w_min`), smoothing (`cmd_smooth_alpha`, `warm_start_alpha`), replanning frequency (`exec_steps`)
+- **`control.weights`** — scoring cost coefficients (sigma, effort, smoothness, path, clearance, discount factor)
+- **`control.behavior_mapping`** — speed and caution categories mapped to max velocities and clearance parameters
+- **`navigator`** — timeout, collision thresholds, recovery behavior
+
+### Key `config/runtime.yaml` flags
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `feature_flags.nav_through_pose` | `false` | Switch between direct cmd_vel mode and Nav2 NavigateThroughPoses mode |
+| `feature_flags.enable_ros_param_inflation_updates` | `true` | Update Nav2 costmap inflation radius when caution changes |
+| `paths.docs_path` | — | Path to the `docs_merged.jsonl` semantic memory file |
+| `paths.viz_map_pgm` | — | Path to the map PGM used for the saved path-map PNG |
+
+---
+
+## Navigation Modes
+
+### Default mode — direct `cmd_vel` (`nav_through_pose: false`)
+
+The stack runs a trajectory sampler every tick: samples N velocity sequences, scores each with the full cost function (goal, clearance, path, constraints, preferences, smoothness), and sends the best `cmd_vel` directly via IPC. Suitable when you want full control over local velocity decisions.
+
+```bash
+python main.py --instruction "go to the red cube"
+```
+
+### Nav2-delegated mode — `nav_through_pose: true`
+
+The stack still runs the same trajectory sampler and cost function, but instead of sending `cmd_vel` it extracts the endpoint of the best trajectory and sends it to Nav2 `NavigateThroughPoses`. Nav2 handles all velocity control; this stack handles the path decision. Useful when Nav2's DWB is preferred for low-level control (e.g., humanoid robots that need smooth motion).
+
+Enable by setting in `config/runtime.yaml`:
+
+```yaml
+feature_flags:
+  nav_through_pose: true
+```
+
+In this mode `nav_through_poses_bridge.py` must be running (see ROS Bridge Nodes below).
+
+---
+
+## ROS Bridge Nodes
+
+The `ros_nodes/` directory contains all ROS2 Python scripts that bridge this stack to a ROS2 environment. Copy the scripts you need into your ROS2 package.
+
+See [`ros_nodes/README.md`](ros_nodes/README.md) for the full port map, per-node description, and minimum required node sets for each navigation mode.
+
+### Quick port reference
+
+| Port | Node | Purpose |
+|------|------|---------|
+| 5557 | `robot_pose_sender_node.py` | TF → pose bundle |
+| 5556 / 5558 | `nav2_sender_node.py` | NavigateToPose goal + status |
+| 5559 | `cmd_vel_sender_node.py` | Receive cmd_vel → publish /cmd_vel |
+| 5562 | `laserscan_sender_node.py` | /scan → laser data |
+| 5563 | `trajectory_visualization_node.py` | Trajectory → /projected_path |
+| 5564 | `occupancy_grid_sender_node.py` | Local costmap |
+| 5565 | `global_costmap.py` | Global costmap |
+| 5566–5569 | `nav_through_poses_bridge.py` | NavigateThroughPoses + telemetry |
+| 5570 | `semnav_rviz_node.py` | Navigation viz → RViz |
+
+### RViz visualization
+
+Start the launch file (which includes `semnav_rviz_node.py`) and add these topics in RViz:
+
+| Topic | Type |
+|-------|------|
+| `/semnav/path` | `nav_msgs/Path` |
+| `/semnav/traj_samples` | `visualization_msgs/MarkerArray` |
+| `/semnav/markers` | `visualization_msgs/MarkerArray` |
+
+The markers include: robot pose arrow, start position, target object, active goal, lookahead point, goal ring (inner/outer), constraint radii (red), and preference radii (blue).
+
+---
 
 ## Running The System
 
-Edit the config files as needed. `main.py` always reads its runtime settings from these files:
-
-- `config/ipc.yaml`
-- `config/params.yaml`
-- `config/runtime.yaml`
-- `config/scenes/<scene>.yaml`
-
-Then run:
-
 ```bash
+conda activate semnav
 python main.py --instruction "go to the red cube and stay close to the blue sphere"
 ```
 
-The only command-line argument is the instruction itself. If you want to change:
+The only command-line argument is the natural-language instruction. All other settings (memory path, IPC addresses, timeouts, navigation mode, visualization) are read from the config files.
 
-- semantic memory path
-- IPC endpoint addresses
-- visualization behavior
-- timeout values
-- collision thresholds
-- scene-specific settings
+---
 
-edit the config files above instead of passing runtime overrides on the command line.
+## Output Structure
+
+Every run automatically saves results to `outputs/runs/<YYYYMMDD_HHMMSS>/`:
+
+```text
+outputs/runs/<timestamp>/
+├── result.json          # Full run data — tasks, trajectory, telemetry, success/fail
+├── summary.txt          # Human-readable: success, duration, final errors per task
+├── telemetry_task0.csv  # Per-step: pose, cmd_vel, distance, heading/phase errors
+├── trajectory_task0.csv # Robot x, y path
+└── path_map_task0.png   # Map overlay with trajectory and goal ring
+```
+
+The map PNG uses `viz_map_pgm` from `config/runtime.yaml` as the background.
+
+---
 
 ## Reproducing Experiments
 
-The scripts under `scripts/` are preparation or analysis helpers. They are not runtime entrypoints.
-
-Examples:
-
 ```bash
 python scripts/postprocess_docs.py --input data/processed/<scene>/memory/.../data_json/docs.jsonl
-python scripts/analyze_experiments.py --result-dir outputs/experiments/<scene>
+python scripts/analyze_experiments.py --result-dir outputs/runs/
 ```
+
+See [docs/reproducibility.md](docs/reproducibility.md) for the full protocol.
+
+---
 
 ## Limitations
 
-- The repository assumes an external IPC bridge already exists.
-- The public runtime is single-device only.
-- The repository does not ship the real dataset.
-- DovSG preprocessing is only partially wrapped here; upstream DovSG setup is still required for full memory generation.
+- Requires an external IPC bridge (provided in `ros_nodes/`).
+- Single-device runtime only.
+- Dataset is not shipped with this repository.
+- DovSG preprocessing requires the upstream DovSG setup for full memory generation.
+
+---
 
 ## References
 
@@ -190,10 +300,7 @@ If you use this repository in academic work, cite the project report or resultin
 
 - **Language-Conditioned Autonomous Navigation through Instruction Decomposition**
 
-Related upstream dependency:
+Related upstream dependencies:
 
-- DovSG repository: `https://github.com/BJHYZJ/DovSG`
-
-Related CLIP model source:
-
+- DovSG: `https://github.com/BJHYZJ/DovSG`
 - LAION OpenCLIP ViT-H-14: `https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K`

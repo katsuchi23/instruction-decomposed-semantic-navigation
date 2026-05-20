@@ -247,10 +247,19 @@ def score_trajectory(
     costmap: Optional[np.ndarray] = None,
     pose_bundle: Optional[Dict[str, Any]] = None,
     meta: Optional[Dict[str, Any]] = None,
-    gamma: float = 0.95,
     constraint_xys: Tuple[Tuple[float, float], ...] = (),
     preference_xys: Tuple[Tuple[float, float], ...] = (),
 ) -> Tuple[float, Dict[str, Any]]:
+    # Read scoring weights from config (fast dict lookup, not file I/O)
+    _w = get_param(("control", "weights"), {})
+    gamma          = float(_w.get("gamma",           0.95))
+    w_sigma_run    = float(_w.get("w_sigma_run",     0.15))
+    w_sigma_init   = float(_w.get("w_sigma_init",    0.75))
+    w_sigma_term   = float(_w.get("w_sigma_term",    2.25))
+    w_progress     = float(_w.get("w_progress",      1.25))
+    w_eff_ang      = float(_w.get("w_effort_angular", 0.3))
+    w_smo_ang      = float(_w.get("w_smooth_angular", 0.2))
+
     v_prev, w_prev = u_prev
     sigma0, _, _, _ = satisfaction_violation(x0, x, obj_xy, params)
 
@@ -281,17 +290,15 @@ def score_trajectory(
         else:
             cost = 0.0
         clear = cost / 100.0
-        effort = params.w_u * (v * v + 0.3 * w * w)
+        effort = params.w_u * (v * v + w_eff_ang * w * w)
         dv = (v - v_prev) / max(1e-6, params.dt)
         dw = (w - w_prev) / max(1e-6, params.dt)
-        smooth = params.w_du * (dv * dv + 0.2 * dw * dw)
+        smooth = params.w_du * (dv * dv + w_smo_ang * dw * dw)
         curv = params.w_curv * (w * w)
 
         # -- path following cost --
         path_cost = 0.0
         if guide and guide.path_xy:
-            # Simplified projection for performance; assumes path is somewhat dense.
-            # This finds the squared distance to the nearest point on the path polyline.
             min_d2 = float("inf")
             for i in range(len(guide.path_xy) - 1):
                 p1 = guide.path_xy[i]
@@ -300,7 +307,6 @@ def score_trajectory(
                 if d2 < min_d2:
                     min_d2 = d2
             path_cost = params.w_path * min_d2
-
 
         # -- constraint penalty (repulsive) --
         constr_pen = 0.0
@@ -323,7 +329,7 @@ def score_trajectory(
         smooth *= relax
         curv *= relax
 
-        run = (0.15 * (sigma * sigma)
+        run = (w_sigma_run * (sigma * sigma)
                + params.w_clear * clear
                + effort + smooth + curv
                + constr_pen + pref_pen
@@ -343,7 +349,7 @@ def score_trajectory(
 
     sigmaT, rT, alphaT, ephiT = satisfaction_violation(x0, x, obj_xy, params)
     progress = sigma0 - sigmaT
-    total += (0.75 * (sigma0 * sigma0)) + (2.25 * (sigmaT * sigmaT)) - (1.25 * progress)
+    total += (w_sigma_init * (sigma0 * sigma0)) + (w_sigma_term * (sigmaT * sigmaT)) - (w_progress * progress)
 
     info = {
         "cost": float(total),
@@ -437,12 +443,18 @@ def sample_and_select_action(
     p_stop = float(sampling_cfg.get("p_stop", 0.10))
     warm_start_alpha = float(sampling_cfg.get("warm_start_alpha", 0.0))
 
+    lookahead_dist = float(sampling_cfg.get("lookahead_dist_m", 0.1))
+    k_yaw = float(sampling_cfg.get("k_yaw", 3.0))
+    noise_v = float(sampling_cfg.get("noise_v", 0.05))
+    noise_w = float(sampling_cfg.get("noise_w", 0.15))
+    yaw_rotate_threshold = math.radians(float(sampling_cfg.get("yaw_rotate_threshold_deg", 40.0)))
+
     seqs, guide = trajectories_sampling_from_path(
         u0=u_prev,
         x=x,
         path_xy=path if path else [],
         last_s0_index=sample_and_select_action._last_s0_index,
-        lookahead_dist=0.1,
+        lookahead_dist=lookahead_dist,
         N=params.N,
         H=params.H,
         dt=params.dt,
@@ -454,6 +466,10 @@ def sample_and_select_action(
         a_v_max=params.a_v_max,
         a_w_max=params.a_w_max,
         warm_start_alpha=warm_start_alpha,
+        k_yaw=k_yaw,
+        noise_v=noise_v,
+        noise_w=noise_w,
+        yaw_rotate_threshold=yaw_rotate_threshold,
     )
     sample_and_select_action._last_s0_index = guide.s0_index
 

@@ -7,98 +7,113 @@ object_retrieval:
   alone_max_candidates: 12         # Maximum candidates evaluated for "alone" references.
   alone_clearance_gate_m: 0.20     # Minimum neighbour clearance required for "alone".
   target_top_k_with_references: 8  # Number of target candidates kept when references exist.
-  clip_gate_start: 0.27            # Initial CLIP gate for adaptive retrieval.
-  clip_gate_min: 0.20              # Lowest CLIP gate before giving up.
+  clip_gate_start: 0.27            # Initial CLIP similarity gate for adaptive retrieval.
+  clip_gate_min: 0.20              # Lowest CLIP gate allowed before giving up retrieval.
   clip_gate_step: 0.01             # CLIP gate decrement per retry.
-  reference_max_dist_m: 0.50       # Hard maximum target-reference distance for "near".
+  reference_max_dist_m: 0.50       # Hard maximum target-to-reference distance for "near".
   reference_score_gain: 1.50       # Multiplier applied to reference agreement before fusion.
   clip_weight: 0.30                # Weight assigned to target CLIP similarity in final ranking.
   top_k: 5                         # Top target candidates kept when no references are present.
 
 intent_costs:
-  constraint_radius_m: 1.0
-  preference_radius_m: 1.0
-  preference_min_dist_m: 0.3
-  w_constraint_path: 3.0
-  w_preference_near_repel_path: 1.0
-  w_preference_attract_path: 10.0
+  constraint_radius_m: 1.0         # Radius of the repulsive penalty zone around each constraint object.
+  preference_radius_m: 1.0         # Radius of the attractive pull zone around each preference object.
+  preference_min_dist_m: 0.3       # Distance from preference object below which the pull is zero (prevent overshoot).
+  w_constraint_path: 3.0           # Weight scaling the constraint repulsion cost along the path.
+  w_preference_near_repel_path: 1.0 # Weight for the mild repulsion applied just inside the preference zone.
+  w_preference_attract_path: 10.0  # Weight scaling the preference attraction cost along the path.
 
 planner:
-  max_goal_retries: 80
-  phase_relax_factor: 1.15
-  goal_w_phase: 0.70
-  goal_w_dist: 0.30
-  goal_w_cost_opt: 0.85
-  goal_w_dist_opt: 0.15
-  max_dist_relax_m: 0.30
-  hard_block_cost: 90
+  max_goal_retries: 80             # Maximum number of ring-sector goal candidates to consider.
+  phase_relax_factor: 1.15         # Factor by which phase tolerance is widened when no goal is found.
+  goal_w_phase: 0.70               # Phase alignment weight used when scoring goal candidates.
+  goal_w_dist: 0.30                # Distance-to-goal weight used when scoring goal candidates.
+  goal_w_cost_opt: 0.85            # Costmap cost weight used in optimistic (fallback) goal scoring.
+  goal_w_dist_opt: 0.15            # Distance weight used in optimistic (fallback) goal scoring.
+  max_dist_relax_m: 0.30           # Maximum distance the stopping band can be widened during fallback.
+  hard_block_cost: 90              # Costmap cell cost above which a cell is treated as impassable.
 
 control:
   termination:
-    distance_band_m:
+    distance_band_m:               # [r_min, r_max] stopping band by strictness level (metres).
       loose: [0.50, 1.00]
       normal: [0.40, 0.80]
       strict: [0.35, 0.60]
-    alpha_max_deg:
+    alpha_max_deg:                 # Maximum allowed heading error to the target (degrees).
       loose: 15.0
       normal: 10.0
       strict: 5.0
-    phi_tol_deg:
+    phi_tol_deg:                   # Maximum allowed phase error around the target (degrees).
       loose: 15.0
       normal: 10.0
       strict: 5.0
-    distance_band_half_width_m:
+    distance_band_half_width_m:    # Half-width added/subtracted around the requested distance_m.
       loose: 0.10
       normal: 0.05
       strict: 0.03
   sampling:
-    h_r: 0.05
-    h_alpha_deg: 3.0
-    dwell_sec_default: 0.5
-    dwell_sec_no_stop: 0.0
-    horizon_steps: 30
-    dt_sec: 0.1
-    num_samples: 100
-    v_min: 0.15              # Minimum linear speed when robot is moving (hardware limit).
-    w_min: 0.15              # Minimum angular speed when robot is turning (hardware limit).
-    p_stop: 0.10             # Per-trajectory probability of sampling a full stop (v=0 or w=0).
-    exec_steps: 3            # Execute this many trajectory steps before replanning.
-    cmd_smooth_alpha: 0.4    # Output velocity low-pass filter (0=frozen, 1=no filter).
-    warm_start_alpha: 0.3    # Blend previous action into sampling target to reduce heading jumps. (v_target = 0.3 × v_prev + 0.7 × v_path)
+    h_r: 0.05                      # Radial tolerance used in sampling goal candidates (metres).
+    h_alpha_deg: 3.0               # Angular tolerance used in sampling goal candidates (degrees).
+    dwell_sec_default: 0.5         # Time to stay at goal before declaring success (default policy).
+    dwell_sec_no_stop: 0.0         # Dwell time when stop policy is "no_stop".
+    horizon_steps: 30              # Number of timesteps (H) in each sampled trajectory.
+    dt_sec: 0.1                    # Timestep duration (seconds) for trajectory rollout.
+    num_samples: 100               # Number of trajectories sampled per planning step (N).
+    v_min: 0.15                    # Minimum linear speed when robot is moving (hardware limit).
+    w_min: 0.15                    # Minimum angular speed when robot is turning (hardware limit).
+    p_stop: 0.10                   # Per-trajectory probability of sampling a full stop (v=0 or w=0).
+    exec_steps: 3                  # Execute this many trajectory steps before replanning.
+    cmd_smooth_alpha: 0.4          # Output velocity low-pass filter blend factor (0=frozen, 1=no filter).
+    warm_start_alpha: 0.3          # Blend previous action into sampling target (reduces heading jumps).
+    lookahead_dist_m: 0.1          # Distance ahead on the global path used to compute the nominal heading.
+    k_yaw: 3.0                     # Proportional gain mapping heading error to nominal angular velocity.
+    noise_v: 0.05                  # Linear velocity noise magnitude added to each sampled trajectory.
+    noise_w: 0.15                  # Angular velocity noise magnitude added to each sampled trajectory.
+    yaw_rotate_threshold_deg: 40.0 # Heading error above which v_target is set to 0 (rotate in place).
   dynamics:
-    a_v_max: 0.5
-    a_w_max: 0.5
+    a_v_max: 0.5                   # Maximum linear acceleration (m/s²) applied inside the trajectory sampler.
+    a_w_max: 0.5                   # Maximum angular acceleration (rad/s²) applied inside the trajectory sampler.
   weights:
-    w_du: 0.5
-    w_curv: 0.6
-    w_path: 2.0
+    w_du: 0.5                      # Weight on velocity smoothness (penalises acceleration changes).
+    w_curv: 0.6                    # Weight on trajectory curvature (penalises high angular velocity).
+    w_path: 2.0                    # Weight on deviation from the global planned path.
+    gamma: 0.95                    # Discount factor applied per step in trajectory scoring.
+    w_sigma_run: 0.15              # Per-step weight on satisfaction violation squared (running cost).
+    w_sigma_init: 0.75             # Terminal weight on initial sigma squared.
+    w_sigma_term: 2.25             # Terminal weight on final sigma squared (encourages reaching goal).
+    w_progress: 1.25               # Weight on sigma progress reward (sigma0 - sigmaT).
+    w_effort_angular: 0.3          # Angular effort scale relative to linear in effort cost (v² + f·w²).
+    w_smooth_angular: 0.2          # Angular smoothness scale relative to linear in smooth cost.
   behavior_mapping:
-    speed:
-      slow: {v_max: 0.2, w_max: 0.2}
+    speed:                         # Max linear and angular speed per speed category.
+      slow:   {v_max: 0.2, w_max: 0.2}
       normal: {v_max: 0.3, w_max: 0.3}
-      fast: {v_max: 0.4, w_max: 0.4}
-    caution:
-      low: {d_safe: 0.20, w_clear: 0.6, w_clear_v: 0.08, w_clear_w: 0.03}
-      normal: {d_safe: 0.30, w_clear: 4.0, w_clear_v: 0.3, w_clear_w: 0.2}
-      high: {d_safe: 0.40, w_clear: 12.0, w_clear_v: 0.8, w_clear_w: 0.35}
-    w_u_fast: 0.5
-    w_u_default: 1.0
-    r_entry_offset_m: 0.25
-    v_entry_max_slow_mps: 0.25
-    v_entry_max_default_mps: 0.35
-    w_face_far: 0.2
-    w_face_near: 1.0
+      fast:   {v_max: 0.4, w_max: 0.4}
+    caution:                       # d_safe: inflation radius; w_clear: obstacle weight; w_clear_v/w: velocity-dependent clearance weights.
+      low:    {d_safe: 0.20, w_clear: 0.6,  w_clear_v: 0.08, w_clear_w: 0.03}
+      normal: {d_safe: 0.30, w_clear: 4.0,  w_clear_v: 0.3,  w_clear_w: 0.2}
+      high:   {d_safe: 0.40, w_clear: 12.0, w_clear_v: 0.8,  w_clear_w: 0.35}
+    w_u_fast: 0.5                  # Effort weight used when speed is "fast" (lower = allows more effort).
+    w_u_default: 1.0               # Effort weight for slow/normal speed.
+    r_entry_offset_m: 0.25         # Distance beyond r_max at which the robot starts decelerating to entry speed.
+    v_entry_max_slow_mps: 0.25     # Maximum approach speed when speed category is "slow".
+    v_entry_max_default_mps: 0.35  # Maximum approach speed for normal/fast.
+    w_face_far: 0.2                # Facing weight applied when the robot is far from the target.
+    w_face_near: 1.0               # Facing weight applied when the robot is near the target.
 
 navigator:
-  timeout_sec: 180.0
-  collision_cost_thresh: 90.0
-  collision_duration_sec: 5.0
-  post_goal_max_retries: 3
-  pose_stale_timeout_sec: 1.0
-  pose_values_frozen_timeout_sec: 1.5
-  pose_missing_warn_sec: 1.0
-  pose_pipeline_warn_sec: 1.0
-
+  timeout_sec: 180.0               # Abort a task if it has not completed within this many seconds.
+  collision_cost_thresh: 90.0      # Costmap cost at the robot's cell above which a collision is detected.
+  collision_duration_sec: 5.0      # Seconds the collision cost must be exceeded before aborting.
+  post_goal_max_retries: 3         # Maximum re-navigation attempts after the first goal attempt fails.
+  pose_stale_timeout_sec: 1.0      # Seconds with no new TF stamp before the pose is considered stale.
+  pose_values_frozen_timeout_sec: 1.5  # Seconds the pose values are frozen (with non-zero cmd) before warning.
+  pose_missing_warn_sec: 1.0       # Seconds without any pose bundle before printing a warning.
+  pose_pipeline_warn_sec: 1.0      # Seconds the selected control pose is unchanged while TF updates.
+  recovery_dwell_sec: 2.0          # Time spent near the goal before triggering spin recovery.
+  done_dwell_sec: 0.0              # Dwell time after all goal conditions are met before declaring done.
+  recovery_spin_w: 0.2             # Angular velocity (rad/s) used during spin recovery.
+  recovery_facing_tol_deg: 3.0     # Heading error below which the robot exits spin recovery.
 
 nav_through_pose:
-  approach_threshold_m: 0.4    # Replan when robot is within this distance of the current waypoint.
+  approach_threshold_m: 0.4        # Replan when the robot is within this distance of the current waypoint.
