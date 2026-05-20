@@ -1,4 +1,4 @@
-"""Intent-caching layer — avoids redundant LLM calls for repeated instructions."""
+"""Intent-caching layer — avoids redundant LLM calls and CLIP grounding for repeated instructions."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 import os
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from parsing.intent_parser import (
     Behavior,
@@ -170,3 +171,92 @@ def load_or_parse_instruction(
         json.dump(asdict(result), f, indent=2)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Retrieval cache — stores CLIP-resolved object coordinates per instruction
+# ---------------------------------------------------------------------------
+
+def _docs_hash(docs_path: Path) -> str:
+    """Return a short hash of the docs file for cache invalidation."""
+    stat = docs_path.stat()
+    raw = f"{docs_path}:{stat.st_size}:{stat.st_mtime_ns}"
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
+
+
+def load_cached_retrieval(
+    instruction: str,
+    docs_path: Path,
+    cache_dir: str | os.PathLike[str] | None = None,
+) -> Optional[List[Dict[str, Any]]]:
+    """Return cached retrieval results for *instruction* + *docs_path*, or ``None`` on miss.
+
+    Returns a list (one entry per task) of::
+
+        {
+            "target":      {"name": str, "xy": [x, y], "class_id": str, "class_name": str},
+            "constraints": [{"name": str, "xy": [x, y], "class_id": str, "class_name": str}, ...],
+            "preferences": [{"name": str, "xy": [x, y], "class_id": str, "class_name": str}, ...],
+        }
+    """
+    cache_path = get_cached_intent_path(instruction, cache_dir)
+    if not os.path.exists(cache_path):
+        return None
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    retrieval = data.get("retrieval")
+    if not isinstance(retrieval, dict):
+        return None
+
+    stored_hash = retrieval.get("docs_hash", "")
+    current_hash = _docs_hash(docs_path)
+    if stored_hash != current_hash:
+        print(
+            f"[Cache] Retrieval cache invalidated (docs changed): "
+            f"stored={stored_hash} current={current_hash}"
+        )
+        return None
+
+    tasks = retrieval.get("tasks")
+    if not isinstance(tasks, list):
+        return None
+
+    print(f"[Cache] Retrieval cache HIT for: {instruction!r}")
+    return tasks
+
+
+def save_cached_retrieval(
+    instruction: str,
+    docs_path: Path,
+    retrieval_tasks: List[Dict[str, Any]],
+    cache_dir: str | os.PathLike[str] | None = None,
+) -> None:
+    """Persist CLIP retrieval results into the existing intent cache file.
+
+    *retrieval_tasks* is the same list structure returned by :func:`load_cached_retrieval`.
+    """
+    cache_path = get_cached_intent_path(instruction, cache_dir)
+
+    try:
+        if os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+    except (json.JSONDecodeError, OSError):
+        data = {}
+
+    data["retrieval"] = {
+        "docs_hash": _docs_hash(docs_path),
+        "tasks": retrieval_tasks,
+    }
+
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    print(f"[Cache] Retrieval results saved for: {instruction!r}")

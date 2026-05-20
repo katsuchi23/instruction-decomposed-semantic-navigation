@@ -355,7 +355,9 @@ class GlobalPlanner:
                             continue
 
                         dist = math.hypot(dx, dy)
-                        step_cost = dist
+                        cell_cost = float(self.grid[neighbor[1], neighbor[0]])
+                        w_costmap = float(_planner_param("costmap_weight", 3.0))
+                        step_cost = dist * (1.0 + w_costmap * cell_cost / 100.0)
                         if penalty is not None:
                             step_cost += penalty[neighbor[1], neighbor[0]]
                         tentative_g = g + step_cost

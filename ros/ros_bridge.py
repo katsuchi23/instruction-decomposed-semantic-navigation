@@ -373,6 +373,9 @@ class SemnavBridgeNode(Node):
 
     def _pub_markers(self, data: Dict, stamp: Any) -> None:
         ma = MarkerArray()
+        del_m = Marker()
+        del_m.action = Marker.DELETEALL
+        ma.markers.append(del_m)
 
         def _add(ns, mid, mtype, pos, color, scale=0.15, yaw=None, text=None):
             m = Marker()

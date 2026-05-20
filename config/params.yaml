@@ -32,6 +32,7 @@ planner:
   goal_w_dist_opt: 0.15            # Distance weight used in optimistic (fallback) goal scoring.
   max_dist_relax_m: 0.30           # Maximum distance the stopping band can be widened during fallback.
   hard_block_cost: 90              # Costmap cell cost above which a cell is treated as impassable.
+  costmap_weight: 15.0              # A* step-cost multiplier on cell cost (higher = wider detour from obstacles).
 
 control:
   termination:
@@ -48,10 +49,7 @@ control:
       loose: 30.0
       normal: 20.0
       strict: 15.0
-    distance_band_half_width_m:    # Half-width added/subtracted around the requested distance_m.
-      loose: 0.15
-      normal: 0.10
-      strict: 0.05
+    distance_band_half_width_m: 0.10  # Fixed half-width (m) around the requested distance_m — same for all strictness levels.
   sampling:
     h_r: 0.05                      # Radial tolerance used in sampling goal candidates (metres).
     h_alpha_deg: 3.0               # Angular tolerance used in sampling goal candidates (degrees).

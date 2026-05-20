@@ -89,10 +89,8 @@ def categories_to_params(task: TaskIntent) -> ControlParams:
         "phi_tol_deg",
         {"loose": 15.0, "normal": 10.0, "strict": 5.0},
     )
-    band_half_width_map = termination_cfg.get(
-        "distance_band_half_width_m",
-        {"loose": 0.10, "normal": 0.05, "strict": 0.03},
-    )
+    # Fixed half-width — does not vary with stop_strictness
+    band_half_width = float(termination_cfg.get("distance_band_half_width_m", 0.05))
 
     default_r_band = tuple(default_r_band_map[termination.stop_strictness])
     default_alpha_max = math.radians(float(default_alpha_map[termination.stop_strictness]))
@@ -101,9 +99,8 @@ def categories_to_params(task: TaskIntent) -> ControlParams:
     # ---- distance band (distance_m is already in metres) ----
     if termination.distance_m is not None and termination.distance_m > 0:
         r0 = clamp(termination.distance_m, 0.10, 3.00)
-        dr = float(band_half_width_map[termination.stop_strictness])
-        r_min = max(0.10, r0 - dr)
-        r_max = r0 + dr
+        r_min = max(0.10, r0 - band_half_width)
+        r_max = r0 + band_half_width
     else:
         r_min, r_max = default_r_band
 

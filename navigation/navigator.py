@@ -28,13 +28,14 @@ from ipc.robot_client import get_latest_robot_pose, reconnect_pose_socket, reset
 from navigation.object_retrieval import (
     resolve_docs_path,
     retrieve_object_location,
+    retrieve_object_match,
     get_direction_min_distance_m,
 )
 from parsing.intent_parser import TaskIntent, ObjectRef
 from utils.config import get_outputs_root, get_param, get_runtime_value, validate_runtime_prereqs
 from ipc.viz_client import send_viz_data
 from utils.path_visualization import plot_task_path
-from utils.intent_cache import load_or_parse_instruction
+from utils.intent_cache import load_or_parse_instruction, load_cached_retrieval, save_cached_retrieval
 from utils.math_helpers import wrap_angle
 
 _LAST_INFLATION_CFG: Optional[Tuple[float, float]] = None
@@ -847,32 +848,105 @@ def run_navigation(
     else:
         print("[INFO] Navigation mode: direct cmd_vel (trajectory sampling)")
 
-    # ---- execute tasks sequentially ----
-    collected_task_results: List[Dict[str, Any]] = []
-    for idx, task in enumerate(parsed.tasks):
-        desc = _describe_target(task)
-        if docs is not None:
+    # ---- resolve object locations (cache → CLIP) ----
+    if docs is None:
+        print(f"[FAIL] No semantic docs available — cannot retrieve object locations.")
+        return
+
+    cached_retrieval = load_cached_retrieval(instruction, docs)
+    all_task_locations: List[Dict] = []
+
+    if cached_retrieval is not None and len(cached_retrieval) == len(parsed.tasks):
+        # Use cached coordinates — skip CLIP entirely
+        for idx, (task, cached) in enumerate(zip(parsed.tasks, cached_retrieval)):
+            desc = _describe_target(task)
+            xy = cached["target"]["xy"]
+            object_location = (float(xy[0]), float(xy[1]))
+            constraint_xys = tuple(
+                (float(c["xy"][0]), float(c["xy"][1])) for c in cached["constraints"]
+            )
+            preference_xys = tuple(
+                (float(p["xy"][0]), float(p["xy"][1])) for p in cached["preferences"]
+            )
+            print(
+                f"\n[Cache] Task {idx+1}: '{desc}' → "
+                f"({object_location[0]:.3f}, {object_location[1]:.3f}) "
+                f"[{cached['target'].get('class_name', '')} / {cached['target'].get('class_id', '')}]"
+            )
+            all_task_locations.append({
+                "object_location": object_location,
+                "constraint_xys": constraint_xys,
+                "preference_xys": preference_xys,
+            })
+    else:
+        # Run CLIP retrieval for all tasks, then cache the results
+        retrieval_to_save: List[Dict] = []
+        for idx, task in enumerate(parsed.tasks):
+            desc = _describe_target(task)
             print(f"\nRetrieving object: '{desc}'")
             try:
-                object_location = retrieve_object_location(
+                target_match = retrieve_object_match(
                     target=task.main.target,
                     references=task.main.references,
                     docs_path=docs,
                 )
-                constraint_xys = tuple(
-                    retrieve_object_location(c.target, c.references, docs)
+                constraint_matches = [
+                    retrieve_object_match(c.target, c.references, docs)
                     for c in task.constraints
-                )
-                preference_xys = tuple(
-                    retrieve_object_location(p.target, p.references, docs)
+                ]
+                preference_matches = [
+                    retrieve_object_match(p.target, p.references, docs)
                     for p in task.preferences
-                )
+                ]
             except Exception as exc:
                 print(f"[FAIL] Task {idx+1}/{len(parsed.tasks)} target retrieval failed: {exc}")
                 return
-        else:
-            print(f"[FAIL] Task {idx+1}/{len(parsed.tasks)} target retrieval failed: no semantic docs available for '{desc}'.")
-            return
+
+            object_location = target_match.xy
+            constraint_xys = tuple(m.xy for m in constraint_matches)
+            preference_xys = tuple(m.xy for m in preference_matches)
+            all_task_locations.append({
+                "object_location": object_location,
+                "constraint_xys": constraint_xys,
+                "preference_xys": preference_xys,
+            })
+            retrieval_to_save.append({
+                "target": {
+                    "name": task.main.target.name,
+                    "xy": list(target_match.xy),
+                    "class_id": target_match.class_id,
+                    "class_name": target_match.class_name,
+                },
+                "constraints": [
+                    {
+                        "name": c.target.name,
+                        "xy": list(m.xy),
+                        "class_id": m.class_id,
+                        "class_name": m.class_name,
+                    }
+                    for c, m in zip(task.constraints, constraint_matches)
+                ],
+                "preferences": [
+                    {
+                        "name": p.target.name,
+                        "xy": list(m.xy),
+                        "class_id": m.class_id,
+                        "class_name": m.class_name,
+                    }
+                    for p, m in zip(task.preferences, preference_matches)
+                ],
+            })
+
+        save_cached_retrieval(instruction, docs, retrieval_to_save)
+
+    # ---- execute tasks sequentially ----
+    collected_task_results: List[Dict[str, Any]] = []
+    for idx, task in enumerate(parsed.tasks):
+        desc = _describe_target(task)
+        locs = all_task_locations[idx]
+        object_location = locs["object_location"]
+        constraint_xys = locs["constraint_xys"]
+        preference_xys = locs["preference_xys"]
 
         for c, loc in zip(task.constraints, constraint_xys):
             print(f"  Constraint (avoid): {c.target.name} at ({loc[0]:.2f}, {loc[1]:.2f})")
