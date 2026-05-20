@@ -31,7 +31,23 @@ The central idea of this repository is to treat language as a modular control in
 - **Automatic result saving** — every run saves `result.json`, `summary.txt`, per-task telemetry CSVs, trajectory CSVs, and a path-map PNG to `outputs/runs/<timestamp>/`.
 - **DovSG submodule** — `submodules/DovSG`.
 - **Dataset placeholders and preparation scripts**.
-- **Docs** — dataset layout, IPC payloads, reproducibility guide.
+- **Docs** — ROS environment setup, system overview, IPC interface contract, dataset format, experiment protocol, reproducibility guide, and full config reference (see Documentation section below).
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/ros_env.md](docs/ros_env.md) | **Start here for hardware setup.** Full ROS 2 launch order (LiDAR driver → localization → Nav2 → robot controller), TF frame layout, and `odom_pitch` fine-tuning guide. |
+| [docs/system_overview.md](docs/system_overview.md) | High-level architecture: how instruction parsing, semantic grounding, planning, and control fit together. |
+| [docs/ipc_interface.md](docs/ipc_interface.md) | IPC contract — all ZMQ endpoint addresses, message schemas, and direction. Required reading if you are writing your own ROS bridge. |
+| [docs/dataset_format.md](docs/dataset_format.md) | Expected directory layout for `data/`, file naming conventions, and field descriptions for `docs.jsonl`. |
+| [docs/experiment_protocol.md](docs/experiment_protocol.md) | Step-by-step protocol for running and logging experiments, including script invocation order. |
+| [docs/reproducibility.md](docs/reproducibility.md) | Post-processing and analysis scripts for reproducing reported results. |
+| [config/config_reference.md](config/config_reference.md) | Full reference for every field in `config/params.yaml`, `config/ipc.yaml`, and `config/runtime.yaml`. |
+| [ros_nodes/README.md](ros_nodes/README.md) | Per-node descriptions, ZMQ port map, and minimum node sets for each navigation mode. |
+| [data/README.md](data/README.md) | Notes on the `data/` placeholder structure and what is expected vs. excluded from version control. |
 
 ---
 
@@ -63,18 +79,26 @@ git submodule update --init --recursive
 
 ## Installation
 
-`environment.yml` is the recommended path because DovSG and its transitive dependencies are easier to manage in a controlled environment.
+There are two ways to set up the Python dependencies for this stack:
+
+### Option A — Conda environment (recommended for isolation)
+
+Creates a dedicated `semnav` environment. This is the original design: the navigation stack runs in its own env and communicates with ROS via ZMQ IPC, so neither side imports the other's packages directly.
 
 ```bash
 conda env create -f environment.yml
 conda activate semnav
 ```
 
-If you prefer `pip`:
+### Option B — Install directly on your base environment
+
+If you prefer not to manage a separate conda env (e.g., you want to run everything in the same environment as ROS), install the dependencies directly:
 
 ```bash
 pip install -r requirements.txt
 ```
+
+> **Note:** `environment.yml` and the IPC bridge nodes in `ros_nodes/` are still available and functional. You can run the stack through IPC (Option A) or straight from your base/ROS environment (Option B) — the core navigation code works the same either way. If using Option B, ensure that all packages in `requirements.txt` are compatible with any ROS packages already installed in your environment.
 
 ---
 
@@ -218,6 +242,14 @@ In this mode `nav_through_poses_bridge.py` must be running (see ROS Bridge Nodes
 
 ---
 
+## ROS Environment Setup
+
+For the full ROS 2 side of the stack (LiDAR driver, localization, Nav2, robot controller), see:
+
+- **[docs/ros_env.md](docs/ros_env.md)** — launch order, package descriptions, TF frame layout, and `odom_pitch` fine-tuning guide.
+
+The ROS packages live in a separate repository: `https://github.com/katsuchi23/g1_ros_package`
+
 ## ROS Bridge Nodes
 
 The `ros_nodes/` directory contains all ROS2 Python scripts that bridge this stack to a ROS2 environment. Copy the scripts you need into your ROS2 package.
@@ -293,7 +325,7 @@ See [docs/reproducibility.md](docs/reproducibility.md) for the full protocol.
 
 ## Limitations
 
-- Requires an external IPC bridge (provided in `ros_nodes/`).
+- Requires a ROS 2 environment providing sensor data and velocity control. The `ros_nodes/` IPC bridge is one way to connect this; direct integration on the base env is also supported.
 - Single-device runtime only.
 - Dataset is not shipped with this repository.
 - DovSG preprocessing requires the upstream DovSG setup for full memory generation.
