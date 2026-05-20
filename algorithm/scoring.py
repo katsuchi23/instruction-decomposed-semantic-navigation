@@ -118,8 +118,9 @@ def categories_to_params(task: TaskIntent) -> ControlParams:
     # disable hard phase rejection for goal satisfaction/planning feasibility.
     phi_tol = default_phi_tol if phase_required else math.pi
 
-    # When phase is unspecified, relax alpha.
-    alpha_max = math.radians(10.0) if phase_deg is None else default_alpha_max
+    # When phase is unspecified, use a separately configurable heading tolerance.
+    no_phase_alpha_max_deg = float(termination_cfg.get("no_phase_alpha_max_deg", 10.0))
+    alpha_max = math.radians(no_phase_alpha_max_deg) if phase_deg is None else default_alpha_max
 
     h_r = float(sampling_cfg.get("h_r", 0.05))
     h_alpha = math.radians(float(sampling_cfg.get("h_alpha_deg", 3.0)))

@@ -15,9 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from utils.config import (
-    DOVSG_ROOT,
     PROJECT_ROOT,
-    ensure_dovsg_python_path,
     get_clip_checkpoint_file,
     get_docs_path_from_config,
     get_param,
@@ -46,7 +44,6 @@ def resolve_docs_path(cli_path: Optional[str] = None) -> Optional[Path]:
     candidates.extend([
         PROJECT_ROOT / "data/testing_ground/memory/30_0.1_0.02_True_0.2_0.5/step_0/data_json/docs.jsonl",
         PROJECT_ROOT / "data_example/testing_ground/memory/30_0.1_0.02_True_0.2_0.5/step_0/data_json/docs.jsonl",
-        DOVSG_ROOT / "data_example" / "testing_ground" / "memory" / "30_0.1_0.02_True_0.2_0.5" / "step_0" / "data_json" / "docs.jsonl",
     ])
 
     for candidate in candidates:
@@ -191,6 +188,54 @@ def _scene_object_to_match(obj: _SceneObject) -> RetrievedObjectMatch:
         xy=obj.xy,
         z=obj.z,
     )
+
+
+class _MainRepoClip:
+    """Minimal CLIP wrapper for this repo's retrieval path.
+
+    This avoids importing DovSG's wrapper, which pulls in unrelated OpenCV
+    dependencies that may not be usable on CPU-only machines.
+    """
+
+    _instance = None
+    _checkpoint: Optional[str] = None
+    _device: Optional[str] = None
+
+    def __new__(cls, checkpoint: Path, device: str = "cpu"):
+        checkpoint_str = str(checkpoint)
+        if (
+            cls._instance is None
+            or cls._checkpoint != checkpoint_str
+            or cls._device != device
+        ):
+            cls._instance = super().__new__(cls)
+            cls._instance._init_once(checkpoint, device)
+            cls._checkpoint = checkpoint_str
+            cls._device = device
+        return cls._instance
+
+    def _init_once(self, checkpoint: Path, device: str) -> None:
+        import open_clip
+
+        self.device = str(device)
+        print(f"==> Initializing CLIP model on {self.device}...")
+        clip_model, _, self.clip_preprocess = open_clip.create_model_and_transforms(
+            model_name="ViT-H-14",
+            pretrained=str(checkpoint),
+        )
+        self.clip_model = clip_model.to(self.device)
+        self.clip_model.eval()
+        self.clip_tokenizer = open_clip.get_tokenizer("ViT-H-14")
+        print("==> Done initializing CLIP model.")
+
+    def get_text_feature(self, text_queries: List[str]):
+        import torch
+
+        with torch.no_grad():
+            tokenized_text = self.clip_tokenizer(text_queries).to(self.device)
+            text_feat = self.clip_model.encode_text(tokenized_text)
+            text_feat /= text_feat.norm(dim=-1, keepdim=True)
+        return text_feat
 
 
 # ============================================================================
@@ -346,12 +391,18 @@ def _retrieve_with_references(
     7. Return position of the candidate with highest ``final_score``.
     """
     try:
-        ensure_dovsg_python_path()
-        from dovsg.utils import utils as dovsg_utils
-        import dovsg.perception.models.myclip as myclip_module
+        import torch  # noqa: F401
+        import open_clip  # noqa: F401
     except Exception as _e:
         import traceback
-        print(f"[ERROR] DovSG/CLIP import failed — retrieval unavailable: {_e}")
+        print(
+            "[ERROR] Main-repo CLIP import failed — retrieval unavailable: "
+            f"{_e}"
+        )
+        print(
+            "[ERROR] This machine is CPU-only, so the Python environment needs "
+            "a working CPU-compatible torch/open_clip install."
+        )
         traceback.print_exc()
         return None
 
@@ -359,19 +410,11 @@ def _retrieve_with_references(
     if not clip_checkpoint.exists():
         raise FileNotFoundError(f"CLIP checkpoint not found: {clip_checkpoint}")
 
-    # DovSG hardcodes the checkpoint path as a module-level variable.
-    # Override it here so this repository owns the runtime CLIP checkpoint path.
-    dovsg_utils.clip_checkpoint_path = str(clip_checkpoint)
-    myclip_module.clip_checkpoint_path = str(clip_checkpoint)
-    MyClip = myclip_module.MyClip
-    if getattr(MyClip, "_instance", None) is not None:
-        MyClip._instance = None
-
     objects = _load_scene_objects(docs_path)
     if not objects:
         return None
 
-    myclip = MyClip(device="cpu")
+    myclip = _MainRepoClip(clip_checkpoint, device="cpu")
 
     # ── Step 2: target CLIP similarities ──────────────────────────────
     target_sims = _clip_similarities(target.name, objects, myclip)

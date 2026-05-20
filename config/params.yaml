@@ -40,29 +40,30 @@ control:
       normal: [0.40, 0.80]
       strict: [0.35, 0.60]
     alpha_max_deg:                 # Maximum allowed heading error to the target (degrees).
-      loose: 15.0
-      normal: 10.0
-      strict: 5.0
+      loose: 30.0
+      normal: 20.0
+      strict: 15.0
+    no_phase_alpha_max_deg: 20.0   # Heading tolerance when no directional phase is required (degrees).
     phi_tol_deg:                   # Maximum allowed phase error around the target (degrees).
-      loose: 15.0
-      normal: 10.0
-      strict: 5.0
+      loose: 30.0
+      normal: 20.0
+      strict: 15.0
     distance_band_half_width_m:    # Half-width added/subtracted around the requested distance_m.
-      loose: 0.10
-      normal: 0.05
-      strict: 0.03
+      loose: 0.15
+      normal: 0.10
+      strict: 0.05
   sampling:
     h_r: 0.05                      # Radial tolerance used in sampling goal candidates (metres).
     h_alpha_deg: 3.0               # Angular tolerance used in sampling goal candidates (degrees).
     dwell_sec_default: 0.5         # Time to stay at goal before declaring success (default policy).
     dwell_sec_no_stop: 0.0         # Dwell time when stop policy is "no_stop".
-    horizon_steps: 30              # Number of timesteps (H) in each sampled trajectory.
+    horizon_steps: 15              # Number of timesteps (H) in each sampled trajectory.
     dt_sec: 0.1                    # Timestep duration (seconds) for trajectory rollout.
-    num_samples: 100               # Number of trajectories sampled per planning step (N).
+    num_samples: 50               # Number of trajectories sampled per planning step (N).
     v_min: 0.15                    # Minimum linear speed when robot is moving (hardware limit).
     w_min: 0.15                    # Minimum angular speed when robot is turning (hardware limit).
     p_stop: 0.10                   # Per-trajectory probability of sampling a full stop (v=0 or w=0).
-    exec_steps: 3                  # Execute this many trajectory steps before replanning.
+    exec_steps: 1                  # Execute one trajectory step before replanning.
     cmd_smooth_alpha: 0.4          # Output velocity low-pass filter blend factor (0=frozen, 1=no filter).
     warm_start_alpha: 0.3          # Blend previous action into sampling target (reduces heading jumps).
     lookahead_dist_m: 0.1          # Distance ahead on the global path used to compute the nominal heading.
@@ -113,7 +114,7 @@ navigator:
   recovery_dwell_sec: 2.0          # Time spent near the goal before triggering spin recovery.
   done_dwell_sec: 0.0              # Dwell time after all goal conditions are met before declaring done.
   recovery_spin_w: 0.2             # Angular velocity (rad/s) used during spin recovery.
-  recovery_facing_tol_deg: 3.0     # Heading error below which the robot exits spin recovery.
+  recovery_facing_tol_deg: 15.0    # Heading error below which the robot exits spin recovery.
 
 nav_through_pose:
   approach_threshold_m: 0.4        # Replan when the robot is within this distance of the current waypoint.

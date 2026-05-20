@@ -732,6 +732,7 @@ def _save_run(
 
     result = {
         "instruction": instruction,
+        "llm_output": exp["llm_output"],
         "overall_success": overall_success,
         "total_duration_sec": round(total_duration, 3),
         "timestamp": output_dir.name,

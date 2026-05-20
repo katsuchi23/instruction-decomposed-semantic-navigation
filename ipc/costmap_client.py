@@ -1,71 +1,28 @@
-"""ZMQ IPC clients for local and global costmaps."""
+"""Costmap clients — direct ROS (replaces ZMQ IPC).
+
+Same public API as before; callers need no changes.
+"""
 
 from __future__ import annotations
 
-import json
+from typing import Optional, Tuple
 
 import numpy as np
-import zmq
 
-from utils.config import get_ipc_endpoint
+
+def _node():
+    from ros.ros_bridge import get_node
+    return get_node()
 
 
 class LocalCostmapIPCClient:
-    """Request/reply client for the local costmap on port 5564."""
+    """Drop-in replacement — reads the latest cached costmap from the ROS bridge."""
 
-    def __init__(self, endpoint: str | None = None) -> None:
-        self._ctx = zmq.Context.instance()
-        self._endpoint = endpoint or get_ipc_endpoint("local_costmap_req")
-        self._sock = self._create_socket()
+    def get(self, timeout_ms: int = 1000) -> Tuple[Optional[np.ndarray], Optional[dict]]:
+        return _node().get_local_costmap()
 
-    def _create_socket(self):
-        s = self._ctx.socket(zmq.REQ)
-        s.setsockopt(zmq.LINGER, 0)
-        s.connect(self._endpoint)
-        return s
-
-    def _reset_socket(self):
-        """Destroy and recreate the REQ socket (recovery after timeout)."""
-        try:
-            self._sock.close()
-        except Exception:
-            pass
-        self._sock = self._create_socket()
-
-    def get(self, timeout_ms: int = 1000):
-        try:
-            self._sock.send_string("GET")
-            if self._sock.poll(timeout_ms) == 0:
-                self._reset_socket()
-                return None, None
-            frames = self._sock.recv_multipart()
-        except zmq.ZMQError:
-            self._reset_socket()
-            return None, None
-
-        if not frames:
-            return None, None
-
-        meta = json.loads(frames[0].decode("utf-8"))
-        if not meta.get("ok", False) or len(frames) < 2:
-            return None, meta
-
-        w = int(meta["width"])
-        h = int(meta["height"])
-        dtype = np.int16 if meta.get("dtype", "int16") == "int16" else np.int8
-
-        grid = np.frombuffer(frames[1], dtype=dtype)
-        if grid.size != w * h:
-            return None, meta
-
-        grid = grid.reshape((h, w))
-        return grid, meta
-
-    def close(self):
-        try:
-            self._sock.close()
-        except Exception:
-            pass
+    def close(self) -> None:
+        pass  # nothing to close
 
     def __enter__(self):
         return self
@@ -74,65 +31,17 @@ class LocalCostmapIPCClient:
         self.close()
 
     def __del__(self):
-        self.close()
+        pass
 
 
 class GlobalCostmapIPCClient:
-    """Request/reply client for the global costmap on port 5565."""
+    """Drop-in replacement — reads the latest cached costmap from the ROS bridge."""
 
-    def __init__(self, endpoint: str | None = None) -> None:
-        self._ctx = zmq.Context.instance()
-        self._endpoint = endpoint or get_ipc_endpoint("global_costmap_req")
-        self._sock = self._create_socket()
+    def get(self, timeout_ms: int = 1000) -> Tuple[Optional[np.ndarray], Optional[dict]]:
+        return _node().get_global_costmap()
 
-    def _create_socket(self):
-        s = self._ctx.socket(zmq.REQ)
-        s.setsockopt(zmq.LINGER, 0)
-        s.connect(self._endpoint)
-        return s
-
-    def _reset_socket(self):
-        """Destroy and recreate the REQ socket (recovery after timeout)."""
-        try:
-            self._sock.close()
-        except Exception:
-            pass
-        self._sock = self._create_socket()
-
-    def get(self, timeout_ms: int = 1000):
-        try:
-            self._sock.send_string("GET")
-            if self._sock.poll(timeout_ms) == 0:
-                self._reset_socket()
-                return None, None
-            frames = self._sock.recv_multipart()
-        except zmq.ZMQError:
-            self._reset_socket()
-            return None, None
-
-        if not frames:
-            return None, None
-
-        meta = json.loads(frames[0].decode("utf-8"))
-        if not meta.get("ok", False) or len(frames) < 2:
-            return None, meta
-
-        w = int(meta["width"])
-        h = int(meta["height"])
-        dtype = np.int16 if meta.get("dtype", "int16") == "int16" else np.int8
-
-        grid = np.frombuffer(frames[1], dtype=dtype)
-        if grid.size != w * h:
-            return None, meta
-
-        grid = grid.reshape((h, w))
-        return grid, meta
-
-    def close(self):
-        try:
-            self._sock.close()
-        except Exception:
-            pass
+    def close(self) -> None:
+        pass
 
     def __enter__(self):
         return self
@@ -141,4 +50,4 @@ class GlobalCostmapIPCClient:
         self.close()
 
     def __del__(self):
-        self.close()
+        pass

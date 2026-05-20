@@ -10,8 +10,8 @@ paths:
   processed_data_root: "data/processed"
   outputs_root: "outputs"
   intent_cache_dir: "outputs/intent_cache"
-  docs_path: ""
-  viz_map_pgm: ""
+  docs_path: "data/processed/data.jsonl"
+  viz_map_pgm: "data/processed/rrc2.pgm"
 
 assets:
   dovsg_root: "submodules/DovSG"

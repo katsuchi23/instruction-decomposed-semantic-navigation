@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 
 from utils.config import (
     get_docs_path_from_config,
@@ -30,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+
+    # This workstation is CPU-only. Keep the main entrypoint on the CPU path
+    # unless the user explicitly overrides it in their environment.
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
     from navigation.navigator import run_navigation
     from navigation.object_retrieval import configure_object_retrieval_params
 
